@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Infraestructura para el datalogger de telemetria del ESP32.
+  Despliega un API Gateway HTTP -> Lambda -> S3.
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: Bucket S3 donde esta subido el ZIP con el codigo de la Lambda
+  CodeKey:
+    Type: String
+    Description: Clave del objeto ZIP en el bucket (ej. datalogger.zip)
+    Default: datalogger.zip
+
+Resources:
+
+  # ── Bucket de datos de telemetria ──────────────────────────────────────────
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "telemetria-data-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ── Rol de ejecucion de la Lambda ──────────────────────────────────────────
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: datalogger-lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: s3-put-telemetria
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:aws:s3:::${DataBucket}/*"
+
+  # ── Funcion Lambda ─────────────────────────────────────────────────────────
+  DataloggerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: datalogger
+      Runtime: nodejs22.x
+      Handler: src/handler.handler
+      Role: !GetAtt LambdaRole.Arn
+      Code:
+        ZipFile: |
+          console.log('Loading Photo Lambda function');
+      Environment:
+        Variables:
+          BUCKET: !Ref DataBucket
+      Timeout: 10
+      MemorySize: 128
+
+  # ── API Gateway HTTP ────────────────────────────────────────────────────────
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: datalogger-api
+      ProtocolType: HTTP
+
+  LambdaIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt DataloggerFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  TelemetriaRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /telemetria"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: "$default"
+      AutoDeploy: true
+
+  # Permiso para que API Gateway invoque la Lambda
+  ApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt DataloggerFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/telemetria"
+
+Outputs:
+  ApiUrl:
+    Description: URL del endpoint de telemetria
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/telemetria"
+
+  DataBucketName:
+    Description: Nombre del bucket S3 donde se almacenan los datos
+    Value: !Ref DataBucket

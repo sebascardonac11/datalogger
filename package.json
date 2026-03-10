@@ -1,0 +1,10 @@
+{
+  "name": "datalogger",
+  "version": "1.0.0",
+  "description": "Lambda para recibir datos de telemetria del ESP32",
+  "main": "src/handler.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  }
+}

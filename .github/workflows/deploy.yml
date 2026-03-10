@@ -1,0 +1,47 @@
+name: Deploy Lambda
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Package and deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Package code
+        run: zip -r datalogger.zip package.json src/
+
+      - name: Upload ZIP to S3
+        run: |
+          aws s3 cp datalogger.zip s3://${{ secrets.CODE_BUCKET }}/datalogger.zip
+
+      - name: Deploy CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --template-file template.yaml \
+            --stack-name datalogger \
+            --parameter-overrides \
+                CodeBucket=${{ secrets.CODE_BUCKET }} \
+                CodeKey=datalogger.zip \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+      - name: Update Lambda code
+        run: |
+          aws lambda update-function-code \
+            --function-name datalogger \
+            --s3-bucket ${{ secrets.CODE_BUCKET }} \
+            --s3-key datalogger.zip
