@@ -26,24 +26,8 @@ jobs:
       - name: Package code
         run: zip -r datalogger.zip package.json src/
 
-      - name: Upload ZIP to S3
-        run: |
-          aws s3 cp datalogger.zip s3://${{ secrets.CODE_BUCKET }}/datalogger.zip
-
-      - name: Deploy CloudFormation stack
-        run: |
-          aws cloudformation deploy \
-            --template-file template.yaml \
-            --stack-name datalogger \
-            --parameter-overrides \
-                CodeBucket=${{ secrets.CODE_BUCKET }} \
-                CodeKey=datalogger.zip \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset
-
-      - name: Update Lambda code
+      - name: Deploy Lambda code
         run: |
           aws lambda update-function-code \
             --function-name datalogger \
-            --s3-bucket ${{ secrets.CODE_BUCKET }} \
-            --s3-key datalogger.zip
+            --zip-file fileb://datalogger.zip
