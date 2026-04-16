@@ -41,6 +41,7 @@ export const handler = async (event) => {
     };
   }
 
+  
   let body;
   try {
     body = typeof event.body === "string" ? JSON.parse(event.body) : event.body;
