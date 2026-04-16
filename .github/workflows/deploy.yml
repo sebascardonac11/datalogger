@@ -10,6 +10,7 @@ jobs:
   deploy:
     name: Package and deploy to AWS
     runs-on: ubuntu-latest
+    environment: dev
 
     steps:
       - name: Checkout
