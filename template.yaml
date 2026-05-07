@@ -1,29 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Infraestructura para el datalogger de telemetria del ESP32.
-  Despliega un API Gateway HTTP -> Lambda -> S3.
+  Despliega un API Gateway HTTP -> Lambda -> DynamoDB + S3.
 
 Parameters:
-  CodeBucket:
+  DataBucketName:
     Type: String
-    Description: Bucket S3 donde esta subido el ZIP con el codigo de la Lambda
-  CodeKey:
-    Type: String
-    Description: Clave del objeto ZIP en el bucket (ej. datalogger.zip)
-    Default: datalogger.zip
+    Description: Nombre del bucket S3 existente donde se almacenan los datos
 
 Resources:
-
-  # ── Bucket de datos de telemetria ──────────────────────────────────────────
-  DataBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "telemetria-data-${AWS::AccountId}-${AWS::Region}"
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
 
   # ── Rol de ejecucion de la Lambda ──────────────────────────────────────────
   LambdaRole:
@@ -46,7 +31,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: s3:PutObject
-                Resource: !Sub "arn:aws:s3:::${DataBucket}/*"
+                Resource: !Sub "arn:aws:s3:::${DataBucketName}/*"
               - Effect: Allow
                 Action: dynamodb:PutItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/telemetryDB"
@@ -61,10 +46,10 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Code:
         ZipFile: |
-          console.log('Loading Photo Lambda function');
+          console.log('Loading telemetry-datalogger function');
       Environment:
         Variables:
-          BUCKET: !Ref DataBucket
+          BUCKET: !Ref DataBucketName
       Timeout: 10
       MemorySize: 128
 
@@ -107,7 +92,6 @@ Resources:
       StageName: "$default"
       AutoDeploy: true
 
-  # Permiso para que API Gateway invoque la Lambda
   ApiGatewayPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -120,7 +104,3 @@ Outputs:
   ApiUrl:
     Description: URL del endpoint de telemetria
     Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/telemetria"
-
-  DataBucketName:
-    Description: Nombre del bucket S3 donde se almacenan los datos
-    Value: !Ref DataBucket
