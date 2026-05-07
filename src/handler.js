@@ -13,6 +13,7 @@ const CORS_HEADERS = {
 
 export const handler = async (event) => {
   const deviceId = event.queryStringParameters?.device_id;
+  const pilot = event.queryStringParameters?.pilot ?? "unknown";
 
   if (!deviceId) {
     return {
@@ -88,6 +89,7 @@ export const handler = async (event) => {
           mainkey: stintKey,
           mainsort: sessionKey,
           device_id: deviceId,
+          pilot,
           date,
           uploaded_at: now.toISOString(),
           record_count: records.length,
