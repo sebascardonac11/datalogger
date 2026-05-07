@@ -55,7 +55,7 @@ Resources:
   DataloggerFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: datalogger
+      FunctionName: telemetry-datalogger
       Runtime: nodejs22.x
       Handler: src/handler.handler
       Role: !GetAtt LambdaRole.Arn

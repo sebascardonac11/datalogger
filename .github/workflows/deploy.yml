@@ -29,5 +29,5 @@ jobs:
       - name: Deploy Lambda code
         run: |
           aws lambda update-function-code \
-            --function-name datalogger \
+            --function-name telemetry-datalogger \
             --zip-file fileb://datalogger.zip
