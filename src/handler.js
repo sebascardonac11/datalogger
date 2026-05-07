@@ -1,25 +1,11 @@
-/**
- * Lambda que recibe una sesion completa de telemetria del ESP32 via POST
- * y la almacena como un unico archivo JSON en S3.
- *
- * Variables de entorno requeridas:
- *   BUCKET — nombre del bucket S3 destino
- *
- * Query parameters requeridos:
- *   device_id  — identificador unico del dispositivo (ej: ESP32_AABBCCDDEEFF)
- *
- * Query parameters opcionales:
- *   session_id — nombre de la sesion (ej: carrera_01). Si no se envia, se usa el timestamp.
- *
- * Body: archivo NDJSON (una linea por punto de telemetria) o JSON array
- *
- * Objeto S3 generado:
- *   {device_id}/{YYYY-MM-DD}/{session_id}.json
- */
-
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { createHash } from "crypto";
 
 const s3 = new S3Client();
+const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient());
+const TABLE = "telemetryDB";
 
 export const handler = async (event) => {
   const deviceId = event.queryStringParameters?.device_id;
@@ -32,7 +18,6 @@ export const handler = async (event) => {
   }
 
   const rawBody = event.body ?? "";
-
   let records;
   try {
     const trimmed = rawBody.trim();
@@ -61,22 +46,60 @@ export const handler = async (event) => {
 
   const now = new Date();
   const date = now.toISOString().slice(0, 10);
-  const sessionId = event.queryStringParameters?.session_id ?? now.getTime().toString();
-  const key = `${deviceId}/${date}/${sessionId}.json`;
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: process.env.BUCKET,
-      Key: key,
-      Body: JSON.stringify(records),
-      ContentType: "application/json",
-    })
-  );
+  // SESSION: deterministic por device+fecha → misma sesion durante todo el dia
+  const sessionHash = createHash("sha256")
+    .update(`${deviceId}#${date}`)
+    .digest("hex")
+    .slice(0, 12);
+  const sessionKey = `SESSION-${sessionHash}`;
 
-  console.log(`[TELEMETRIA] device_id=${deviceId} session=${sessionId} records=${records.length} key=${key}`);
+  // STINT: unico por carga (device + timestamp)
+  const stintHash = createHash("sha256")
+    .update(`${deviceId}#${now.getTime()}`)
+    .digest("hex")
+    .slice(0, 12);
+  const stintKey = `STINT-${stintHash}`;
+
+  const s3Key = `${deviceId}/${date}/${stintKey}.json`;
+
+  await Promise.all([
+    // Archivo completo en S3
+    s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: s3Key,
+        Body: JSON.stringify(records),
+        ContentType: "application/json",
+      })
+    ),
+    // Registro en DynamoDB
+    dynamo.send(
+      new PutCommand({
+        TableName: TABLE,
+        Item: {
+          mainkey: stintKey,
+          mainsort: sessionKey,
+          device_id: deviceId,
+          date,
+          uploaded_at: now.toISOString(),
+          record_count: records.length,
+          s3_key: s3Key,
+          records,
+        },
+      })
+    ),
+  ]);
+
+  console.log(`[TELEMETRIA] device_id=${deviceId} stint=${stintKey} session=${sessionKey} records=${records.length}`);
 
   return {
     statusCode: 200,
-    body: JSON.stringify({ ok: true, key, records: records.length }),
+    body: JSON.stringify({
+      ok: true,
+      mainkey: stintKey,
+      mainsort: sessionKey,
+      records: records.length,
+    }),
   };
 };
