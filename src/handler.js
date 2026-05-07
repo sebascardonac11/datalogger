@@ -6,6 +6,10 @@ import { createHash } from "crypto";
 const s3 = new S3Client();
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient());
 const TABLE = "telemetryDB";
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "https://dqs1fxxxb0c68.cloudfront.net",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+};
 
 export const handler = async (event) => {
   const deviceId = event.queryStringParameters?.device_id;
@@ -13,6 +17,7 @@ export const handler = async (event) => {
   if (!deviceId) {
     return {
       statusCode: 422,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: "Falta query parameter device_id" }),
     };
   }
@@ -33,6 +38,7 @@ export const handler = async (event) => {
   } catch {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: "Body invalido: se esperaba NDJSON o JSON array" }),
     };
   }
@@ -40,6 +46,7 @@ export const handler = async (event) => {
   if (!Array.isArray(records) || records.length === 0) {
     return {
       statusCode: 422,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: "La sesion no contiene registros" }),
     };
   }
@@ -95,6 +102,7 @@ export const handler = async (event) => {
 
   return {
     statusCode: 200,
+    headers: CORS_HEADERS,
     body: JSON.stringify({
       ok: true,
       mainkey: stintKey,

@@ -74,6 +74,16 @@ Resources:
     Properties:
       Name: datalogger-api
       ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - https://dqs1fxxxb0c68.cloudfront.net
+        AllowMethods:
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        MaxAge: 300
 
   LambdaIntegration:
     Type: AWS::ApiGatewayV2::Integration
