@@ -5,6 +5,19 @@ import { createHash } from "crypto";
 
 const TABLE = "telemetryDB";
 
+// Handles ISO strings, Unix ms (>1e10) and Unix seconds
+function parseTimestamp(ts) {
+  if (!ts) return null;
+  if (typeof ts === "string") {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof ts === "number") {
+    return new Date(ts > 1e10 ? ts : ts * 1000);
+  }
+  return null;
+}
+
 export class TelemetryService {
   constructor() {
     this.s3 = new S3Client();
@@ -13,18 +26,21 @@ export class TelemetryService {
 
   async registerStint({ cognitoUserId, deviceId, racer, records }) {
     const now = new Date();
-    const date = now.toISOString().slice(0, 10);
-    const timestamp = now.getTime();
+    const uploadTs = now.getTime();
 
     const stintId = createHash("sha256")
-      .update(`${deviceId}#${timestamp}`)
+      .update(`${deviceId}#${uploadTs}`)
       .digest("hex")
       .slice(0, 12);
 
+    // Parse the first record's timestamp into a real Date
+    const sessionDate = parseTimestamp(records[0]?.timestamp) ?? now;
+    const date = sessionDate.toISOString().slice(0, 10);
+    const session_start = sessionDate.toISOString();
+
     const mainkey = `RACER#${cognitoUserId}`;
-    const mainsort = `STINT#${timestamp}#${stintId}`;
+    const mainsort = `STINT#${uploadTs}#${stintId}`;
     const s3Key = `${cognitoUserId}/${date}/${mainsort}.json`;
-    const session_start = records[0]?.timestamp ?? null;
 
     await Promise.all([
       this.s3.send(
