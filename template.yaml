@@ -66,6 +66,7 @@ Resources:
         AllowOrigins:
           - https://dqs1fxxxb0c68.cloudfront.net
         AllowMethods:
+          - GET
           - POST
           - OPTIONS
         AllowHeaders:
