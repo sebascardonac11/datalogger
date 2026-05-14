@@ -37,6 +37,108 @@ function respond(statusCode, body) {
   return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
 
+async function handleGetCircuits() {
+  try {
+    const circuits = await service.getCircuits();
+    return respond(200, { circuits });
+  } catch (err) {
+    console.error("[GET CIRCUITS ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
+async function handleGetDevices(cognitoUserId) {
+  try {
+    const devices = await service.getDevices({ cognitoUserId });
+    return respond(200, { devices });
+  } catch (err) {
+    console.error("[GET DEVICES ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
+async function handlePostDevice(event, cognitoUserId) {
+  let body;
+  try { body = JSON.parse(event.body ?? "{}"); } catch { return respond(400, { error: "Invalid JSON body" }); }
+  if (!body.name) return respond(422, { error: "Missing field: name" });
+  if (!body.mac)  return respond(422, { error: "Missing field: mac" });
+  try {
+    const result = await service.createDevice({ cognitoUserId, ...body });
+    return respond(200, { ok: true, ...result });
+  } catch (err) {
+    console.error("[POST DEVICE ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
+async function handlePutDevice(event, cognitoUserId) {
+  const oldSk = event.queryStringParameters?.sk;
+  if (!oldSk) return respond(422, { error: "Missing query parameter: sk" });
+  let body;
+  try { body = JSON.parse(event.body ?? "{}"); } catch { return respond(400, { error: "Invalid JSON body" }); }
+  if (!body.name) return respond(422, { error: "Missing field: name" });
+  if (!body.mac)  return respond(422, { error: "Missing field: mac" });
+  try {
+    const result = await service.updateDevice({ cognitoUserId, oldSk, ...body });
+    return respond(200, { ok: true, ...result });
+  } catch (err) {
+    console.error("[PUT DEVICE ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
+async function handleDeleteDevice(event, cognitoUserId) {
+  const sk = event.queryStringParameters?.sk;
+  if (!sk) return respond(422, { error: "Missing query parameter: sk" });
+  try {
+    await service.deleteDevice({ cognitoUserId, sk });
+    return respond(200, { ok: true });
+  } catch (err) {
+    console.error("[DELETE DEVICE ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
+async function handlePostCircuit(event) {
+  let body;
+  try { body = JSON.parse(event.body ?? "{}"); } catch { return respond(400, { error: "Invalid JSON body" }); }
+  if (!body.name) return respond(422, { error: "Missing field: name" });
+  try {
+    const result = await service.createCircuit(body);
+    return respond(200, { ok: true, ...result });
+  } catch (err) {
+    console.error("[POST CIRCUIT ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
+async function handlePutCircuit(event) {
+  const oldSk = event.queryStringParameters?.sk;
+  if (!oldSk) return respond(422, { error: "Missing query parameter: sk" });
+  let body;
+  try { body = JSON.parse(event.body ?? "{}"); } catch { return respond(400, { error: "Invalid JSON body" }); }
+  if (!body.name) return respond(422, { error: "Missing field: name" });
+  try {
+    const result = await service.updateCircuit({ oldSk, ...body });
+    return respond(200, { ok: true, ...result });
+  } catch (err) {
+    console.error("[PUT CIRCUIT ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
+async function handleDeleteCircuit(event) {
+  const sk = event.queryStringParameters?.sk;
+  if (!sk) return respond(422, { error: "Missing query parameter: sk" });
+  try {
+    await service.deleteCircuit(sk);
+    return respond(200, { ok: true });
+  } catch (err) {
+    console.error("[DELETE CIRCUIT ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
+}
+
 async function handleGet(event, cognitoUserId) {
   const { sk, date } = event.queryStringParameters ?? {};
 
@@ -90,7 +192,20 @@ export const handler = async (event) => {
   if (!cognitoUserId) return respond(401, { error: "Missing or invalid Authorization token" });
 
   const method = event.requestContext?.http?.method ?? event.httpMethod;
+  const path   = event.requestContext?.http?.path ?? event.path ?? "";
 
+  if (path.endsWith("/dispositivos")) {
+    if (method === "GET")    return handleGetDevices(cognitoUserId);
+    if (method === "POST")   return handlePostDevice(event, cognitoUserId);
+    if (method === "PUT")    return handlePutDevice(event, cognitoUserId);
+    if (method === "DELETE") return handleDeleteDevice(event, cognitoUserId);
+  }
+  if (path.endsWith("/circuitos")) {
+    if (method === "GET")    return handleGetCircuits();
+    if (method === "POST")   return handlePostCircuit(event);
+    if (method === "PUT")    return handlePutCircuit(event);
+    if (method === "DELETE") return handleDeleteCircuit(event);
+  }
   if (method === "GET") return handleGet(event, cognitoUserId);
   if (method === "POST") return handlePost(event, cognitoUserId);
 

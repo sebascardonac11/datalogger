@@ -1,6 +1,6 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { createHash } from "crypto";
 
 const TABLE = "telemetryDB";
@@ -119,6 +119,105 @@ export class TelemetryService {
 
     const { Items } = await this.dynamo.send(new QueryCommand(params));
     return Items ?? [];
+  }
+
+  async createCircuit({ name, location, lengthKm, lat, lon, radiusM, minSpeedKmh, minLapMs }) {
+    const item = {
+      mainkey: "CIRCUITS",
+      mainsort: `CIRCUIT#${name}`,
+      name,
+      location: location ?? "",
+      lengthKm: lengthKm ?? 0,
+    };
+    if (lat       != null) item.lat         = lat;
+    if (lon       != null) item.lon         = lon;
+    if (radiusM   != null) item.radiusM     = radiusM;
+    if (minSpeedKmh != null) item.minSpeedKmh = minSpeedKmh;
+    if (minLapMs  != null) item.minLapMs    = minLapMs;
+
+    await this.dynamo.send(new PutCommand({ TableName: TABLE, Item: item }));
+    return { mainsort: item.mainsort };
+  }
+
+  async updateCircuit({ oldSk, name, location, lengthKm, lat, lon, radiusM, minSpeedKmh, minLapMs }) {
+    const newSk = `CIRCUIT#${name}`;
+    if (oldSk && oldSk !== newSk) {
+      await this.dynamo.send(new DeleteCommand({
+        TableName: TABLE,
+        Key: { mainkey: "CIRCUITS", mainsort: oldSk },
+      }));
+    }
+    return this.createCircuit({ name, location, lengthKm, lat, lon, radiusM, minSpeedKmh, minLapMs });
+  }
+
+  async deleteCircuit(sk) {
+    await this.dynamo.send(new DeleteCommand({
+      TableName: TABLE,
+      Key: { mainkey: "CIRCUITS", mainsort: sk },
+    }));
+  }
+
+  async getDevices({ cognitoUserId }) {
+    const { Items } = await this.dynamo.send(new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "mainkey = :pk AND begins_with(mainsort, :prefix)",
+      ExpressionAttributeValues: { ":pk": `RACER#${cognitoUserId}`, ":prefix": "DEVICE#" },
+    }));
+    return (Items ?? []).map(item => ({
+      id:   item.mainsort,
+      mac:  item.mac,
+      name: item.name,
+      type: item.type,
+    }));
+  }
+
+  async createDevice({ cognitoUserId, name, type, mac }) {
+    if (!mac) throw Object.assign(new Error("Missing field: mac"), { name: "ValidationError" });
+    const item = {
+      mainkey: `RACER#${cognitoUserId}`,
+      mainsort: `DEVICE#${mac}`,
+      mac, name, type: type ?? "",
+    };
+    await this.dynamo.send(new PutCommand({ TableName: TABLE, Item: item }));
+    return { mainsort: item.mainsort };
+  }
+
+  async updateDevice({ cognitoUserId, oldSk, name, type, mac }) {
+    if (!mac) throw Object.assign(new Error("Missing field: mac"), { name: "ValidationError" });
+    const newSk = `DEVICE#${mac}`;
+    if (oldSk && oldSk !== newSk) {
+      await this.dynamo.send(new DeleteCommand({
+        TableName: TABLE,
+        Key: { mainkey: `RACER#${cognitoUserId}`, mainsort: oldSk },
+      }));
+    }
+    return this.createDevice({ cognitoUserId, name, type, mac });
+  }
+
+  async deleteDevice({ cognitoUserId, sk }) {
+    await this.dynamo.send(new DeleteCommand({
+      TableName: TABLE,
+      Key: { mainkey: `RACER#${cognitoUserId}`, mainsort: sk },
+    }));
+  }
+
+  async getCircuits() {
+    const { Items } = await this.dynamo.send(new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "mainkey = :pk AND begins_with(mainsort, :prefix)",
+      ExpressionAttributeValues: { ":pk": "CIRCUITS", ":prefix": "CIRCUIT#" },
+    }));
+    return (Items ?? []).map(item => ({
+      id: item.mainsort,
+      name: item.name,
+      location: item.location,
+      lengthKm: item.lengthKm,
+      lat: item.lat,
+      lon: item.lon,
+      radiusM: item.radiusM,
+      minSpeedKmh: item.minSpeedKmh,
+      minLapMs: item.minLapMs,
+    }));
   }
 
   // Returns a single stint including its records

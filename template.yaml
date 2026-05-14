@@ -37,6 +37,7 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:GetItem
                   - dynamodb:Query
+                  - dynamodb:DeleteItem
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/telemetryDB"
 
   # ── Funcion Lambda ─────────────────────────────────────────────────────────
@@ -68,6 +69,8 @@ Resources:
         AllowMethods:
           - GET
           - POST
+          - PUT
+          - DELETE
           - OPTIONS
         AllowHeaders:
           - Content-Type
@@ -96,6 +99,62 @@ Resources:
       RouteKey: "GET /telemetria"
       Target: !Sub "integrations/${LambdaIntegration}"
 
+  CircuitosGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /circuitos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  CircuitosPostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /circuitos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  CircuitosPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "PUT /circuitos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  CircuitosDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "DELETE /circuitos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  DispositivosGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /dispositivos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  DispositivosPostRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /dispositivos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  DispositivosPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "PUT /dispositivos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  DispositivosDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "DELETE /dispositivos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
   ApiStage:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
@@ -109,7 +168,7 @@ Resources:
       FunctionName: !GetAtt DataloggerFunction.Arn
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/*/telemetria"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*"
 
 Outputs:
   ApiUrl:
