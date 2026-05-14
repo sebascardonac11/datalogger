@@ -145,15 +145,15 @@ async function handleGet(event, cognitoUserId) {
   const { sk, date } = event.queryStringParameters ?? {};
 
   try {
-    // GET /telemetria?sk=STINT%23... → specific stint with records
+    // GET /telemetry?sk=STINT%23... → specific stint with records
     if (sk) {
       const stint = await service.getStint({ cognitoUserId, sk });
       if (!stint) return respond(404, { error: "Stint not found" });
       return respond(200, stint);
     }
 
-    // GET /telemetria?date=2026-05-14 → all stints of that session (no records)
-    // GET /telemetria → all stints of the racer (no records)
+    // GET /telemetry?date=2026-05-14 → all stints of that session (no records)
+    // GET /telemetry → all stints of the racer (no records)
     const stints = await service.getStintsBySession({ cognitoUserId, date });
     return respond(200, { stints });
   } catch (err) {
@@ -198,13 +198,13 @@ export const handler = async (event) => {
 
   const path = event.requestContext?.http?.path ?? event.path ?? "";
 
-  if (path.endsWith("/dispositivos")) {
+  if (path.endsWith("/devices")) {
     if (method === "GET")    return handleGetDevices(cognitoUserId);
     if (method === "POST")   return handlePostDevice(event, cognitoUserId);
     if (method === "PUT")    return handlePutDevice(event, cognitoUserId);
     if (method === "DELETE") return handleDeleteDevice(event, cognitoUserId);
   }
-  if (path.endsWith("/circuitos")) {
+  if (path.endsWith("/circuits")) {
     if (method === "GET")    return handleGetCircuits();
     if (method === "POST")   return handlePostCircuit(event);
     if (method === "PUT")    return handlePutCircuit(event);

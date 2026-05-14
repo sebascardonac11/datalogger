@@ -89,91 +89,91 @@ Resources:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "OPTIONS /telemetria"
+      RouteKey: "OPTIONS /telemetry"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   CircuitosOptionsRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "OPTIONS /circuitos"
+      RouteKey: "OPTIONS /circuits"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   DispositivosOptionsRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "OPTIONS /dispositivos"
+      RouteKey: "OPTIONS /devices"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   TelemetriaPostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "POST /telemetria"
+      RouteKey: "POST /telemetry"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   TelemetriaGetRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "GET /telemetria"
+      RouteKey: "GET /telemetry"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   CircuitosGetRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "GET /circuitos"
+      RouteKey: "GET /circuits"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   CircuitosPostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "POST /circuitos"
+      RouteKey: "POST /circuits"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   CircuitosPutRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "PUT /circuitos"
+      RouteKey: "PUT /circuits"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   CircuitosDeleteRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "DELETE /circuitos"
+      RouteKey: "DELETE /circuits"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   DispositivosGetRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "GET /dispositivos"
+      RouteKey: "GET /devices"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   DispositivosPostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "POST /dispositivos"
+      RouteKey: "POST /devices"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   DispositivosPutRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "PUT /dispositivos"
+      RouteKey: "PUT /devices"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   DispositivosDeleteRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
-      RouteKey: "DELETE /dispositivos"
+      RouteKey: "DELETE /devices"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   ApiStage:
@@ -194,4 +194,4 @@ Resources:
 Outputs:
   ApiUrl:
     Description: URL del endpoint de telemetria
-    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/telemetria"
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/telemetry"
