@@ -40,17 +40,22 @@ function respond(statusCode, body) {
 async function handleGet(event, cognitoUserId) {
   const { sk, date } = event.queryStringParameters ?? {};
 
-  // GET /telemetria?sk=STINT%23... → specific stint with records
-  if (sk) {
-    const stint = await service.getStint({ cognitoUserId, sk });
-    if (!stint) return respond(404, { error: "Stint not found" });
-    return respond(200, stint);
-  }
+  try {
+    // GET /telemetria?sk=STINT%23... → specific stint with records
+    if (sk) {
+      const stint = await service.getStint({ cognitoUserId, sk });
+      if (!stint) return respond(404, { error: "Stint not found" });
+      return respond(200, stint);
+    }
 
-  // GET /telemetria?date=2026-05-14 → all stints of that session (no records)
-  // GET /telemetria → all stints of the racer (no records)
-  const stints = await service.getStintsBySession({ cognitoUserId, date });
-  return respond(200, { stints });
+    // GET /telemetria?date=2026-05-14 → all stints of that session (no records)
+    // GET /telemetria → all stints of the racer (no records)
+    const stints = await service.getStintsBySession({ cognitoUserId, date });
+    return respond(200, { stints });
+  } catch (err) {
+    console.error("[GET ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
 }
 
 async function handlePost(event, cognitoUserId) {
@@ -70,8 +75,13 @@ async function handlePost(event, cognitoUserId) {
     return respond(422, { error: "Session contains no records" });
   }
 
-  const result = await service.registerStint({ cognitoUserId, deviceId, racer, records });
-  return respond(200, { ok: true, ...result });
+  try {
+    const result = await service.registerStint({ cognitoUserId, deviceId, racer, records });
+    return respond(200, { ok: true, ...result });
+  } catch (err) {
+    console.error("[POST ERROR]", err);
+    return respond(500, { error: err.message, code: err.name });
+  }
 }
 
 export const handler = async (event) => {
