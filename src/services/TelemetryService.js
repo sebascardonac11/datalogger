@@ -42,6 +42,7 @@ export class TelemetryService {
     const sessionDate = parseTimestamp(records[0]?.timestamp) ?? now;
     const date = sessionDate.toISOString().slice(0, 10);
     const session_start = sessionDate.toISOString();
+    const lap_count = new Set(records.map(r => r.lap ?? r.Lap ?? r.lap_number ?? 0)).size;
 
     const mainkey = `RACER#${cognitoUserId}`;
     const mainsort = `STINT#${uploadTs}#${stintId}`;
@@ -67,6 +68,7 @@ export class TelemetryService {
             date,
             session_start,
             uploaded_at: now.toISOString(),
+            lap_count,
             record_count: records.length,
             s3_key: s3Key,
             records,
@@ -86,7 +88,7 @@ export class TelemetryService {
       TableName: TABLE,
       KeyConditionExpression: "mainkey = :pk AND begins_with(mainsort, :prefix)",
       ExpressionAttributeValues: { ":pk": `RACER#${cognitoUserId}`, ":prefix": "STINT#" },
-      ProjectionExpression: "mainkey, mainsort, device_id, racer, #d, session_start, uploaded_at, record_count, s3_key",
+      ProjectionExpression: "mainkey, mainsort, device_id, racer, #d, session_start, uploaded_at, lap_count, record_count, s3_key",
       ExpressionAttributeNames: { "#d": "date" },
     };
 
