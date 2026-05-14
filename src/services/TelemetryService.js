@@ -21,7 +21,7 @@ export class TelemetryService {
       .digest("hex")
       .slice(0, 12);
 
-    const PK = `RACER#${cognitoUserId}`;
+    const mainkey = `RACER#${cognitoUserId}`;
     const SK = `STINT#${timestamp}#${stintId}`;
     const s3Key = `${cognitoUserId}/${date}/${SK}.json`;
 
@@ -38,7 +38,7 @@ export class TelemetryService {
         new PutCommand({
           TableName: TABLE,
           Item: {
-            PK,
+            mainkey,
             SK,
             device_id: deviceId,
             racer,
@@ -52,18 +52,18 @@ export class TelemetryService {
       ),
     ]);
 
-    console.log(`[TELEMETRIA] PK=${PK} SK=${SK} records=${records.length}`);
+    console.log(`[TELEMETRIA] mainkey=${mainkey} SK=${SK} records=${records.length}`);
 
-    return { PK, SK, records: records.length };
+    return { mainkey, SK, records: records.length };
   }
 
   // Returns all stints for a racer, optionally filtered by date (session)
   async getStintsBySession({ cognitoUserId, date }) {
     const params = {
       TableName: TABLE,
-      KeyConditionExpression: "PK = :pk AND begins_with(SK, :prefix)",
+      KeyConditionExpression: "mainkey = :pk AND begins_with(SK, :prefix)",
       ExpressionAttributeValues: { ":pk": `RACER#${cognitoUserId}`, ":prefix": "STINT#" },
-      ProjectionExpression: "PK, SK, device_id, racer, #d, uploaded_at, record_count, s3_key",
+      ProjectionExpression: "mainkey, SK, device_id, racer, #d, uploaded_at, record_count, s3_key",
       ExpressionAttributeNames: { "#d": "date" },
     };
 
@@ -81,7 +81,7 @@ export class TelemetryService {
     const { Item } = await this.dynamo.send(
       new GetCommand({
         TableName: TABLE,
-        Key: { PK: `RACER#${cognitoUserId}`, SK: sk },
+        Key: { mainkey: `RACER#${cognitoUserId}`, SK: sk },
       })
     );
     return Item ?? null;
