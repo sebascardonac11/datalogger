@@ -1,115 +1,64 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { createHash } from "crypto";
+import { TelemetryService } from "./services/TelemetryService.js";
 
-const s3 = new S3Client();
-const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient());
-const TABLE = "telemetryDB";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "https://dqs1fxxxb0c68.cloudfront.net",
   "Access-Control-Allow-Headers": "Content-Type,Authorization",
 };
 
+const service = new TelemetryService();
+
+function extractCognitoUserId(event) {
+  // Prefer JWT authorizer context (when API Gateway has a Cognito authorizer)
+  const claims = event.requestContext?.authorizer?.jwt?.claims;
+  if (claims?.sub) return claims.sub;
+
+  // Fall back to decoding the Authorization header manually
+  const authHeader = event.headers?.Authorization ?? event.headers?.authorization;
+  const token = authHeader?.split(" ")[1];
+  if (!token) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    return payload.sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function parseRecords(rawBody) {
+  const trimmed = (rawBody ?? "").trim();
+  if (trimmed.startsWith("[")) return JSON.parse(trimmed);
+  return trimmed
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line));
+}
+
+function respond(statusCode, body) {
+  return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
+}
+
 export const handler = async (event) => {
   const deviceId = event.queryStringParameters?.device_id;
   const racer = event.queryStringParameters?.racer ?? "unknown";
+  const cognitoUserId = extractCognitoUserId(event);
 
-  if (!deviceId) {
-    return {
-      statusCode: 422,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: "Falta query parameter device_id" }),
-    };
-  }
+  if (!deviceId) return respond(422, { error: "Missing query parameter: device_id" });
+  if (!cognitoUserId) return respond(401, { error: "Missing or invalid Authorization token" });
 
-  const rawBody = event.body ?? "";
   let records;
   try {
-    const trimmed = rawBody.trim();
-    if (trimmed.startsWith("[")) {
-      records = JSON.parse(trimmed);
-    } else {
-      records = trimmed
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((line) => JSON.parse(line));
-    }
+    records = parseRecords(event.body);
   } catch {
-    return {
-      statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: "Body invalido: se esperaba NDJSON o JSON array" }),
-    };
+    return respond(400, { error: "Invalid body: expected NDJSON or JSON array" });
   }
 
   if (!Array.isArray(records) || records.length === 0) {
-    return {
-      statusCode: 422,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: "La sesion no contiene registros" }),
-    };
+    return respond(422, { error: "Session contains no records" });
   }
 
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10);
+  const result = await service.registerStint({ cognitoUserId, deviceId, racer, records });
 
-  // SESSION: deterministic por device+fecha → misma sesion durante todo el dia
-  const sessionHash = createHash("sha256")
-    .update(`${deviceId}#${date}`)
-    .digest("hex")
-    .slice(0, 12);
-  const sessionKey = `SESSION-${sessionHash}`;
-
-  // STINT: unico por carga (device + timestamp)
-  const stintHash = createHash("sha256")
-    .update(`${deviceId}#${now.getTime()}`)
-    .digest("hex")
-    .slice(0, 12);
-  const stintKey = `STINT-${stintHash}`;
-
-  const s3Key = `${deviceId}/${date}/${stintKey}.json`;
-
-  await Promise.all([
-    // Archivo completo en S3
-    s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.BUCKET,
-        Key: s3Key,
-        Body: JSON.stringify(records),
-        ContentType: "application/json",
-      })
-    ),
-    // Registro en DynamoDB
-    dynamo.send(
-      new PutCommand({
-        TableName: TABLE,
-        Item: {
-          mainkey: stintKey,
-          mainsort: sessionKey,
-          device_id: deviceId,
-          racer,
-          date,
-          uploaded_at: now.toISOString(),
-          record_count: records.length,
-          s3_key: s3Key,
-          records,
-        },
-      })
-    ),
-  ]);
-
-  console.log(`[TELEMETRIA] device_id=${deviceId} stint=${stintKey} session=${sessionKey} records=${records.length}`);
-
-  return {
-    statusCode: 200,
-    headers: CORS_HEADERS,
-    body: JSON.stringify({
-      ok: true,
-      mainkey: stintKey,
-      mainsort: sessionKey,
-      records: records.length,
-    }),
-  };
+  return respond(200, { ok: true, ...result });
 };
