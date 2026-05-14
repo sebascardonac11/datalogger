@@ -85,6 +85,27 @@ Resources:
       IntegrationUri: !GetAtt DataloggerFunction.Arn
       PayloadFormatVersion: "2.0"
 
+  TelemetriaOptionsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "OPTIONS /telemetria"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  CircuitosOptionsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "OPTIONS /circuitos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  DispositivosOptionsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "OPTIONS /dispositivos"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
   TelemetriaPostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:

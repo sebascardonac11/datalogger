@@ -3,6 +3,8 @@ import { TelemetryService } from "./services/TelemetryService.js";
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "https://dqs1fxxxb0c68.cloudfront.net",
   "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+  "Access-Control-Max-Age": "300",
 };
 
 const service = new TelemetryService();
@@ -188,11 +190,13 @@ async function handlePost(event, cognitoUserId) {
 }
 
 export const handler = async (event) => {
+  const method = event.requestContext?.http?.method ?? event.httpMethod;
+  if (method === "OPTIONS") return respond(200, {});
+
   const cognitoUserId = extractCognitoUserId(event);
   if (!cognitoUserId) return respond(401, { error: "Missing or invalid Authorization token" });
 
-  const method = event.requestContext?.http?.method ?? event.httpMethod;
-  const path   = event.requestContext?.http?.path ?? event.path ?? "";
+  const path = event.requestContext?.http?.path ?? event.path ?? "";
 
   if (path.endsWith("/dispositivos")) {
     if (method === "GET")    return handleGetDevices(cognitoUserId);
