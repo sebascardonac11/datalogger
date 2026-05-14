@@ -37,7 +37,7 @@ export class TelemetryService {
     this.dynamo = DynamoDBDocumentClient.from(new DynamoDBClient());
   }
 
-  async registerStint({ cognitoUserId, deviceId, racer, records }) {
+  async registerStint({ cognitoUserId, deviceId, racer, records, circuit }) {
     const now = new Date();
     const uploadTs = now.getTime();
 
@@ -92,6 +92,15 @@ export class TelemetryService {
             record_count: records.length,
             s3_key: s3Key,
             records,
+            ...(circuit && {
+              circuit_id:       circuit.id,
+              circuit_name:     circuit.name,
+              circuit_location: circuit.location,
+              circuit_length_km: circuit.lengthKm,
+              circuit_lat:      circuit.lat,
+              circuit_lon:      circuit.lon,
+              circuit_radius_m: circuit.radiusM,
+            }),
           },
         })
       ),
@@ -108,7 +117,7 @@ export class TelemetryService {
       TableName: TABLE,
       KeyConditionExpression: "mainkey = :pk AND begins_with(mainsort, :prefix)",
       ExpressionAttributeValues: { ":pk": `RACER#${cognitoUserId}`, ":prefix": "STINT#" },
-      ProjectionExpression: "mainkey, mainsort, device_id, racer, #d, session_start, uploaded_at, lap_count, record_count, s3_key",
+      ProjectionExpression: "mainkey, mainsort, device_id, racer, #d, session_start, uploaded_at, lap_count, record_count, s3_key, circuit_id, circuit_name, circuit_location, circuit_length_km, circuit_lat, circuit_lon, circuit_radius_m",
       ExpressionAttributeNames: { "#d": "date" },
     };
 

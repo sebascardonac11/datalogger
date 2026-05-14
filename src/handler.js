@@ -168,11 +168,23 @@ async function handlePost(event, cognitoUserId) {
 
   if (!deviceId) return respond(422, { error: "Missing query parameter: device_id" });
 
-  let records;
+  let records, circuit = null;
   try {
-    records = parseRecords(event.body);
+    const parsed = JSON.parse(event.body ?? "");
+    if (Array.isArray(parsed)) {
+      records = parsed;
+    } else if (parsed.records && Array.isArray(parsed.records)) {
+      records = parsed.records;
+      circuit = parsed.circuit ?? null;
+    } else {
+      return respond(400, { error: "Invalid body: expected JSON array or { records, circuit }" });
+    }
   } catch {
-    return respond(400, { error: "Invalid body: expected NDJSON or JSON array" });
+    try {
+      records = parseRecords(event.body);
+    } catch {
+      return respond(400, { error: "Invalid body: expected NDJSON or JSON array" });
+    }
   }
 
   if (!Array.isArray(records) || records.length === 0) {
@@ -180,7 +192,7 @@ async function handlePost(event, cognitoUserId) {
   }
 
   try {
-    const result = await service.registerStint({ cognitoUserId, deviceId, racer, records });
+    const result = await service.registerStint({ cognitoUserId, deviceId, racer, records, circuit });
     return respond(200, { ok: true, ...result });
   } catch (err) {
     console.error("[POST ERROR]", err);
