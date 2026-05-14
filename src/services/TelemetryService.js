@@ -5,10 +5,15 @@ import { createHash } from "crypto";
 
 const TABLE = "telemetryDB";
 
-// Handles ISO strings, Unix ms (>1e10) and Unix seconds
+// Handles DD/MM/YYYY HH:mm:ss, ISO strings, Unix ms (>1e10) and Unix seconds
 function parseTimestamp(ts) {
   if (!ts) return null;
   if (typeof ts === "string") {
+    const ddmmyyyy = ts.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+    if (ddmmyyyy) {
+      const [, dd, mm, yyyy, hh, min, ss] = ddmmyyyy;
+      return new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}`);
+    }
     const d = new Date(ts);
     return isNaN(d.getTime()) ? null : d;
   }
