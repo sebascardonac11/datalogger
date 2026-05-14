@@ -24,6 +24,7 @@ export class TelemetryService {
     const mainkey = `RACER#${cognitoUserId}`;
     const mainsort = `STINT#${timestamp}#${stintId}`;
     const s3Key = `${cognitoUserId}/${date}/${mainsort}.json`;
+    const session_start = records[0]?.timestamp ?? null;
 
     await Promise.all([
       this.s3.send(
@@ -43,6 +44,7 @@ export class TelemetryService {
             device_id: deviceId,
             racer,
             date,
+            session_start,
             uploaded_at: now.toISOString(),
             record_count: records.length,
             s3_key: s3Key,
@@ -63,7 +65,7 @@ export class TelemetryService {
       TableName: TABLE,
       KeyConditionExpression: "mainkey = :pk AND begins_with(mainsort, :prefix)",
       ExpressionAttributeValues: { ":pk": `RACER#${cognitoUserId}`, ":prefix": "STINT#" },
-      ProjectionExpression: "mainkey, mainsort, device_id, racer, #d, uploaded_at, record_count, s3_key",
+      ProjectionExpression: "mainkey, mainsort, device_id, racer, #d, session_start, uploaded_at, record_count, s3_key",
       ExpressionAttributeNames: { "#d": "date" },
     };
 
