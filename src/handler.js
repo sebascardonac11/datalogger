@@ -8,11 +8,9 @@ const CORS_HEADERS = {
 const service = new TelemetryService();
 
 function extractCognitoUserId(event) {
-  // Prefer JWT authorizer context (when API Gateway has a Cognito authorizer)
   const claims = event.requestContext?.authorizer?.jwt?.claims;
   if (claims?.sub) return claims.sub;
 
-  // Fall back to decoding the Authorization header manually
   const authHeader = event.headers?.Authorization ?? event.headers?.authorization;
   const token = authHeader?.split(" ")[1];
   if (!token) return null;
@@ -39,13 +37,27 @@ function respond(statusCode, body) {
   return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
 
-export const handler = async (event) => {
+async function handleGet(event, cognitoUserId) {
+  const { sk, date } = event.queryStringParameters ?? {};
+
+  // GET /telemetria?sk=STINT%23... → specific stint with records
+  if (sk) {
+    const stint = await service.getStint({ cognitoUserId, sk });
+    if (!stint) return respond(404, { error: "Stint not found" });
+    return respond(200, stint);
+  }
+
+  // GET /telemetria?date=2026-05-14 → all stints of that session (no records)
+  // GET /telemetria → all stints of the racer (no records)
+  const stints = await service.getStintsBySession({ cognitoUserId, date });
+  return respond(200, { stints });
+}
+
+async function handlePost(event, cognitoUserId) {
   const deviceId = event.queryStringParameters?.device_id;
   const racer = event.queryStringParameters?.racer ?? "unknown";
-  const cognitoUserId = extractCognitoUserId(event);
 
   if (!deviceId) return respond(422, { error: "Missing query parameter: device_id" });
-  if (!cognitoUserId) return respond(401, { error: "Missing or invalid Authorization token" });
 
   let records;
   try {
@@ -59,6 +71,17 @@ export const handler = async (event) => {
   }
 
   const result = await service.registerStint({ cognitoUserId, deviceId, racer, records });
-
   return respond(200, { ok: true, ...result });
+}
+
+export const handler = async (event) => {
+  const cognitoUserId = extractCognitoUserId(event);
+  if (!cognitoUserId) return respond(401, { error: "Missing or invalid Authorization token" });
+
+  const method = event.requestContext?.http?.method ?? event.httpMethod;
+
+  if (method === "GET") return handleGet(event, cognitoUserId);
+  if (method === "POST") return handlePost(event, cognitoUserId);
+
+  return respond(405, { error: "Method not allowed" });
 };

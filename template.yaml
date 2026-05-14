@@ -33,7 +33,10 @@ Resources:
                 Action: s3:PutObject
                 Resource: !Sub "arn:aws:s3:::${DataBucketName}/*"
               - Effect: Allow
-                Action: dynamodb:PutItem
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/telemetryDB"
 
   # ── Funcion Lambda ─────────────────────────────────────────────────────────
@@ -78,11 +81,18 @@ Resources:
       IntegrationUri: !GetAtt DataloggerFunction.Arn
       PayloadFormatVersion: "2.0"
 
-  TelemetriaRoute:
+  TelemetriaPostRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref HttpApi
       RouteKey: "POST /telemetria"
+      Target: !Sub "integrations/${LambdaIntegration}"
+
+  TelemetriaGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "GET /telemetria"
       Target: !Sub "integrations/${LambdaIntegration}"
 
   ApiStage:

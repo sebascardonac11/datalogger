@@ -1,6 +1,6 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { createHash } from "crypto";
 
 const TABLE = "telemetryDB";
@@ -55,5 +55,35 @@ export class TelemetryService {
     console.log(`[TELEMETRIA] PK=${PK} SK=${SK} records=${records.length}`);
 
     return { PK, SK, records: records.length };
+  }
+
+  // Returns all stints for a racer, optionally filtered by date (session)
+  async getStintsBySession({ cognitoUserId, date }) {
+    const params = {
+      TableName: TABLE,
+      KeyConditionExpression: "PK = :pk AND begins_with(SK, :prefix)",
+      ExpressionAttributeValues: { ":pk": `RACER#${cognitoUserId}`, ":prefix": "STINT#" },
+      ProjectionExpression: "PK, SK, device_id, racer, #d, uploaded_at, record_count, s3_key",
+      ExpressionAttributeNames: { "#d": "date" },
+    };
+
+    if (date) {
+      params.FilterExpression = "#d = :date";
+      params.ExpressionAttributeValues[":date"] = date;
+    }
+
+    const { Items } = await this.dynamo.send(new QueryCommand(params));
+    return Items ?? [];
+  }
+
+  // Returns a single stint including its records
+  async getStint({ cognitoUserId, sk }) {
+    const { Item } = await this.dynamo.send(
+      new GetCommand({
+        TableName: TABLE,
+        Key: { PK: `RACER#${cognitoUserId}`, SK: sk },
+      })
+    );
+    return Item ?? null;
   }
 }
