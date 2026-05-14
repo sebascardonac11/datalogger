@@ -9,18 +9,26 @@ const TABLE = "telemetryDB";
 function parseTimestamp(ts) {
   if (!ts) return null;
   if (typeof ts === "string") {
-    const ddmmyyyy = ts.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+    const trimmed = ts.trim();
+    const ddmmyyyy = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
     if (ddmmyyyy) {
       const [, dd, mm, yyyy, hh, min, ss] = ddmmyyyy;
       return new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}`);
     }
-    const d = new Date(ts);
+    const d = new Date(trimmed);
     return isNaN(d.getTime()) ? null : d;
   }
   if (typeof ts === "number") {
     return new Date(ts > 1e10 ? ts : ts * 1000);
   }
   return null;
+}
+
+class DuplicateSessionError extends Error {
+  constructor(sessionStart) {
+    super(`Ya existe una sesión registrada para ${sessionStart}`);
+    this.name = "DuplicateSessionError";
+  }
 }
 
 export class TelemetryService {
@@ -38,8 +46,9 @@ export class TelemetryService {
       .digest("hex")
       .slice(0, 12);
 
-    // Parse the first record's timestamp into a real Date
-    const sessionDate = parseTimestamp(records[0]?.timestamp) ?? now;
+    // Field can be named "timestamp" or "date" depending on device firmware
+    const rawTs = records[0]?.timestamp ?? records[0]?.date ?? null;
+    const sessionDate = parseTimestamp(rawTs) ?? now;
     const date = sessionDate.toISOString().slice(0, 10);
     const session_start = sessionDate.toISOString();
     const lap_count = new Set(records.map(r => r.lap ?? r.Lap ?? r.lap_number ?? 0)).size;
@@ -47,6 +56,17 @@ export class TelemetryService {
     const mainkey = `RACER#${cognitoUserId}`;
     const mainsort = `STINT#${uploadTs}#${stintId}`;
     const s3Key = `${cognitoUserId}/${date}/${mainsort}.json`;
+
+    // Duplicate check: reject if session_start already exists for this racer
+    const { Items: existing } = await this.dynamo.send(new QueryCommand({
+      TableName: TABLE,
+      KeyConditionExpression: "mainkey = :pk AND begins_with(mainsort, :prefix)",
+      ExpressionAttributeValues: { ":pk": mainkey, ":prefix": "STINT#", ":ss": session_start },
+      FilterExpression: "session_start = :ss",
+      ProjectionExpression: "mainkey",
+      Limit: 1,
+    }));
+    if (existing?.length > 0) throw new DuplicateSessionError(session_start);
 
     await Promise.all([
       this.s3.send(

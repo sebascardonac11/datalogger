@@ -80,6 +80,7 @@ async function handlePost(event, cognitoUserId) {
     return respond(200, { ok: true, ...result });
   } catch (err) {
     console.error("[POST ERROR]", err);
+    if (err.name === "DuplicateSessionError") return respond(409, { error: err.message });
     return respond(500, { error: err.message, code: err.name });
   }
 }
