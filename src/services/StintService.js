@@ -1,5 +1,5 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { PutCommand, QueryCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { PutCommand, QueryCommand, GetCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { createHash } from "crypto";
 import { dynamo, TABLE } from "../lib/dynamo.js";
 
@@ -106,6 +106,21 @@ export class StintService {
     }
     const { Items } = await dynamo.send(new QueryCommand(params));
     return Items ?? [];
+  }
+
+  async delete(uid, sk) {
+    const item = await this.getOne(uid, sk);
+    if (!item) return;
+
+    await Promise.all([
+      dynamo.send(new DeleteCommand({
+        TableName: TABLE,
+        Key: { mainkey: `RACER#${uid}`, mainsort: sk },
+      })),
+      item.s3_key
+        ? this.s3.send(new DeleteObjectCommand({ Bucket: process.env.BUCKET, Key: item.s3_key }))
+        : Promise.resolve(),
+    ]);
   }
 
   async getOne(uid, sk) {

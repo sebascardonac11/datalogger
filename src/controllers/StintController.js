@@ -27,6 +27,12 @@ export class StintController {
     return { stints };
   }
 
+  async delete(event, uid) {
+    const sk = requireParam(event, "sk");
+    await svc.delete(uid, sk);
+    return { ok: true };
+  }
+
   async post(event, uid) {
     const deviceId = requireParam(event, "device_id");
     const racer    = event.queryStringParameters?.racer ?? "unknown";

@@ -30,7 +30,9 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: s3:PutObject
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
                 Resource: !Sub "arn:aws:s3:::${DataBucketName}/*"
               - Effect: Allow
                 Action:
@@ -84,6 +86,13 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri: !GetAtt DataloggerFunction.Arn
       PayloadFormatVersion: "2.0"
+
+  TelemetryDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "DELETE /telemetry"
+      Target: !Sub "integrations/${LambdaIntegration}"
 
   TelemetriaOptionsRoute:
     Type: AWS::ApiGatewayV2::Route
