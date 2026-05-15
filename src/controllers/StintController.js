@@ -8,7 +8,7 @@ function parseStintBody(event) {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed))               return { records: parsed, circuit: null };
-    if (Array.isArray(parsed?.records))      return { records: parsed.records, circuit: parsed.circuit ?? null };
+    if (Array.isArray(parsed?.records))      return { records: parsed.records, circuit: parsed.circuit ?? null, notes: parsed.notes ?? null };
   } catch { /* fall through to NDJSON */ }
 
   const records = raw.split("\n").map(l => l.trim()).filter(Boolean).map(l => JSON.parse(l));
@@ -43,11 +43,11 @@ export class StintController {
   async post(event, uid) {
     const deviceId = requireParam(event, "device_id");
     const racer    = event.queryStringParameters?.racer ?? "unknown";
-    const { records, circuit } = parseStintBody(event);
+    const { records, circuit, notes } = parseStintBody(event);
 
     if (!records.length)
       throw Object.assign(new Error("Session contains no records"), { statusCode: 422 });
 
-    return svc.register(uid, deviceId, racer, records, circuit);
+    return svc.register(uid, deviceId, racer, records, circuit, notes);
   }
 }

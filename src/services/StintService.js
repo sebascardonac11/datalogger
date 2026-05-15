@@ -5,7 +5,7 @@ import { dynamo, TABLE } from "../lib/dynamo.js";
 
 const STINT_PROJECTION = [
   "mainkey", "mainsort", "device_id", "racer", "#d", "session_start",
-  "uploaded_at", "lap_count", "record_count", "s3_key",
+  "uploaded_at", "lap_count", "record_count", "s3_key", "notes",
   "circuit_id", "circuit_name", "circuit_location",
   "circuit_length_km", "circuit_lat", "circuit_lon", "circuit_radius_m",
 ].join(", ");
@@ -37,7 +37,7 @@ class DuplicateSessionError extends Error {
 export class StintService {
   s3 = new S3Client();
 
-  async register(uid, deviceId, racer, records, circuit) {
+  async register(uid, deviceId, racer, records, circuit, notes) {
     const now      = new Date();
     const uploadTs = now.getTime();
     const stintId  = createHash("sha256").update(`${deviceId}#${uploadTs}`).digest("hex").slice(0, 12);
@@ -75,6 +75,7 @@ export class StintService {
           mainkey, mainsort, device_id: deviceId, racer, date, session_start,
           uploaded_at: now.toISOString(), lap_count, record_count: records.length, s3_key: s3Key,
           records,
+          ...(notes && { notes }),
           ...(circuit && {
             circuit_id:        circuit.id,
             circuit_name:      circuit.name,
