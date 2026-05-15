@@ -28,7 +28,14 @@ export class StintController {
   }
 
   async delete(event, uid) {
-    const sk = requireParam(event, "sk");
+    const sk  = requireParam(event, "sk");
+    const lap = event.queryStringParameters?.lap;
+
+    if (lap !== undefined) {
+      const result = await svc.deleteLap(uid, sk, Number(lap));
+      return { ok: true, ...result };
+    }
+
     await svc.delete(uid, sk);
     return { ok: true };
   }

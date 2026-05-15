@@ -108,6 +108,21 @@ export class StintService {
     return Items ?? [];
   }
 
+  async deleteLap(uid, sk, lap) {
+    const item = await this.getOne(uid, sk);
+    if (!item) return;
+
+    const records = (item.records ?? []).filter(r => Number(r.lap ?? r.Lap ?? r.lap_number ?? 0) !== lap);
+    const lap_count = new Set(records.map(r => r.lap ?? r.Lap ?? r.lap_number ?? 0)).size;
+
+    await dynamo.send(new PutCommand({
+      TableName: TABLE,
+      Item: { ...item, records, lap_count, record_count: records.length },
+    }));
+
+    return { lap_count, record_count: records.length };
+  }
+
   async delete(uid, sk) {
     const item = await this.getOne(uid, sk);
     if (!item) return;
