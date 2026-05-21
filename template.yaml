@@ -40,6 +40,7 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:Query
                   - dynamodb:DeleteItem
+                  - dynamodb:Scan
                 Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/telemetryDB"
 
   # ── Funcion Lambda ─────────────────────────────────────────────────────────
@@ -86,6 +87,13 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri: !GetAtt DataloggerFunction.Arn
       PayloadFormatVersion: "2.0"
+
+  DeviceUploadRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /device-upload"
+      Target: !Sub "integrations/${LambdaIntegration}"
 
   TelemetryDeleteRoute:
     Type: AWS::ApiGatewayV2::Route

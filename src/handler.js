@@ -1,11 +1,13 @@
 import { respond, handleError } from "./lib/http.js";
-import { CircuitController } from "./controllers/CircuitController.js";
-import { DeviceController }  from "./controllers/DeviceController.js";
-import { StintController }   from "./controllers/StintController.js";
+import { CircuitController }       from "./controllers/CircuitController.js";
+import { DeviceController }        from "./controllers/DeviceController.js";
+import { StintController }         from "./controllers/StintController.js";
+import { DeviceUploadController }  from "./controllers/DeviceUploadController.js";
 
-const circuits = new CircuitController();
-const devices  = new DeviceController();
-const stints   = new StintController();
+const circuits      = new CircuitController();
+const devices       = new DeviceController();
+const stints        = new StintController();
+const deviceUpload  = new DeviceUploadController();
 
 function extractCognitoUserId(event) {
   const claims = event.requestContext?.authorizer?.jwt?.claims;
@@ -41,9 +43,20 @@ export const handler = async (event) => {
 
   const path = event.requestContext?.http?.path ?? event.path ?? "";
 
-  if (path.endsWith("/circuits"))  return route(circuits, method, event, uid);
-  if (path.endsWith("/devices"))   return route(devices,  method, event, uid);
-  if (path.endsWith("/telemetry")) return route(stints,   method, event, uid);
+  if (path.endsWith("/circuits"))       return route(circuits, method, event, uid);
+  if (path.endsWith("/devices"))        return route(devices,  method, event, uid);
+  if (path.endsWith("/telemetry"))      return route(stints,   method, event, uid);
+
+  // Endpoint sin autenticacion para dispositivos ESP32 — valida MAC en DynamoDB
+  if (path.endsWith("/device-upload")) {
+    if (method !== "POST") return respond(405, { error: "Method not allowed" });
+    try {
+      const raw = await deviceUpload.post(event);
+      return { statusCode: raw.statusCode, body: raw.body, headers: { "Content-Type": "application/json" } };
+    } catch (err) {
+      return handleError("POST", err);
+    }
+  }
 
   return respond(405, { error: "Method not allowed" });
 };

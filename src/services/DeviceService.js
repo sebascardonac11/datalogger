@@ -1,4 +1,4 @@
-import { PutCommand, QueryCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand, QueryCommand, DeleteCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { dynamo, TABLE } from "../lib/dynamo.js";
 
 export class DeviceService {
@@ -27,5 +27,19 @@ export class DeviceService {
 
   async delete(uid, sk) {
     await dynamo.send(new DeleteCommand({ TableName: TABLE, Key: { mainkey: this.pk(uid), mainsort: sk } }));
+  }
+
+  // Busca el dueño de un device por su MAC. Usa Scan porque la MAC es sort key, no hay GSI.
+  async findOwnerByMac(mac) {
+    const { Items } = await dynamo.send(new ScanCommand({
+      TableName: TABLE,
+      FilterExpression: "mainsort = :sk",
+      ExpressionAttributeValues: { ":sk": `DEVICE#${mac}` },
+      ProjectionExpression: "mainkey, mac, #n",
+      ExpressionAttributeNames: { "#n": "name" },
+    }));
+    if (!Items?.length) return null;
+    const uid = Items[0].mainkey.replace("RACER#", "");
+    return { uid, mac: Items[0].mac, name: Items[0].name };
   }
 }
