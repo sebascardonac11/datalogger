@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { PutCommand, QueryCommand, GetCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { createHash } from "crypto";
 import { dynamo, TABLE } from "../lib/dynamo.js";
@@ -74,7 +74,6 @@ export class StintService {
         Item: {
           mainkey, mainsort, device_id: deviceId, racer, date, session_start,
           uploaded_at: now.toISOString(), lap_count, record_count: records.length, s3_key: s3Key,
-          records,
           ...(notes && { notes }),
           ...(circuit && {
             circuit_id:        circuit.id,
@@ -115,11 +114,20 @@ export class StintService {
 
     const records = (item.records ?? []).filter(r => Number(r.lap ?? r.Lap ?? r.lap_number ?? 0) !== lap);
     const lap_count = new Set(records.map(r => r.lap ?? r.Lap ?? r.lap_number ?? 0)).size;
+    const { records: _records, ...meta } = item;
 
-    await dynamo.send(new PutCommand({
-      TableName: TABLE,
-      Item: { ...item, records, lap_count, record_count: records.length },
-    }));
+    await Promise.all([
+      this.s3.send(new PutObjectCommand({
+        Bucket: process.env.BUCKET,
+        Key: item.s3_key,
+        Body: JSON.stringify(records),
+        ContentType: "application/json",
+      })),
+      dynamo.send(new PutCommand({
+        TableName: TABLE,
+        Item: { ...meta, lap_count, record_count: records.length },
+      })),
+    ]);
 
     return { lap_count, record_count: records.length };
   }
@@ -144,6 +152,11 @@ export class StintService {
       TableName: TABLE,
       Key: { mainkey: `RACER#${uid}`, mainsort: sk },
     }));
-    return Item ?? null;
+    if (!Item) return null;
+    if (!Item.s3_key) return Item;
+
+    const { Body } = await this.s3.send(new GetObjectCommand({ Bucket: process.env.BUCKET, Key: Item.s3_key }));
+    const records = JSON.parse(await Body.transformToString());
+    return { ...Item, records };
   }
 }
