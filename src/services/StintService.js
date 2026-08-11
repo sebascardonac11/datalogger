@@ -58,7 +58,6 @@ export class StintService {
       ExpressionAttributeValues: { ":pk": mainkey, ":prefix": "STINT#", ":ss": session_start },
       FilterExpression: "session_start = :ss",
       ProjectionExpression: "mainkey",
-      Limit: 1,
     }));
     if (existing?.length > 0) throw new DuplicateSessionError(session_start);
 
@@ -104,8 +103,18 @@ export class StintService {
       params.FilterExpression = "#d = :date";
       params.ExpressionAttributeValues[":date"] = date;
     }
-    const { Items } = await dynamo.send(new QueryCommand(params));
-    return Items ?? [];
+
+    const items = [];
+    let ExclusiveStartKey;
+    do {
+      const { Items, LastEvaluatedKey } = await dynamo.send(
+        new QueryCommand({ ...params, ExclusiveStartKey })
+      );
+      items.push(...(Items ?? []));
+      ExclusiveStartKey = LastEvaluatedKey;
+    } while (ExclusiveStartKey);
+
+    return items;
   }
 
   async deleteLap(uid, sk, lap) {
